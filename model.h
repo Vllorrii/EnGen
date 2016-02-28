@@ -33,7 +33,7 @@ public:
 
 	bool InitializeBuffers(ID3D11Device*);
 	void ShutdownBuffers();
-	void RenderBuffers(ID3D11DeviceContext*, XMFLOAT4X4, XMFLOAT4X4, XMFLOAT4X4);
+	void RenderBuffers(ID3D11DeviceContext*);
 
 	int GetIndexCount();
 
@@ -43,21 +43,9 @@ private:
 		XMFLOAT4 color;
 	};
 
-	bool LoadModelFromFile(char*, Vertex*, unsigned int*);
-
-	bool InitializeShader(ID3D11Device*);
-	void ShutdownShader();
-	void RenderShader(ID3D11DeviceContext*, XMFLOAT4X4);
-
 private:
 	ID3D11Buffer *m_vertexBuffer, *m_indexBuffer;
 	int m_vertexCount, m_indexCount;
-
-	ID3DX11Effect* m_effect;
-	ID3DX11EffectTechnique* m_effectTechnique;
-	ID3DX11EffectMatrixVariable* m_worldViewProj;
-
-	ID3D11InputLayout* m_inputLayout;
 };
 
 #endif

@@ -43,6 +43,9 @@ bool Direct3D::Initialize(int width, int height, HWND hwnd, bool vsync, bool ful
 	DXGI_SWAP_CHAIN_DESC swapChainDesc;
 	ID3D11Texture2D* backBuffer;
 	D3D11_TEXTURE2D_DESC depthBufferDesc;
+	D3D11_DEPTH_STENCIL_DESC depthStencilDesc;
+	D3D11_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc;
+	D3D11_RASTERIZER_DESC rasterDesc;
 	D3D11_VIEWPORT viewport;
 
 	// Set vsync and fullscreen
@@ -128,14 +131,63 @@ bool Direct3D::Initialize(int width, int height, HWND hwnd, bool vsync, bool ful
 	depthBufferDesc.Usage = D3D11_USAGE_DEFAULT;
 	depthBufferDesc.Width = width;
 
-	// Create the depth stencil buffer and depth stencil view
+	// Create the depth stencil buffer
 	result = m_device->CreateTexture2D(&depthBufferDesc, 0, &m_depthStencilBuffer);
 	if (FAILED(result)) { return false; }
-	result = m_device->CreateDepthStencilView(m_depthStencilBuffer, 0, &m_depthStencilView);
+
+	// Fill out the depth stencil description
+	ZeroMemory(&depthStencilDesc, sizeof(depthStencilDesc));
+	depthStencilDesc.DepthEnable = true;
+	depthStencilDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
+	depthStencilDesc.DepthFunc = D3D11_COMPARISON_LESS;
+	depthStencilDesc.StencilEnable = true;
+	depthStencilDesc.StencilReadMask = 0xFF;
+	depthStencilDesc.StencilWriteMask = 0xFF;
+	depthStencilDesc.FrontFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.FrontFace.StencilDepthFailOp = D3D11_STENCIL_OP_INCR;
+	depthStencilDesc.FrontFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.FrontFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+	depthStencilDesc.BackFace.StencilFailOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.BackFace.StencilDepthFailOp = D3D11_STENCIL_OP_DECR;
+	depthStencilDesc.BackFace.StencilPassOp = D3D11_STENCIL_OP_KEEP;
+	depthStencilDesc.BackFace.StencilFunc = D3D11_COMPARISON_ALWAYS;
+
+	// First create the depth stencil state and bind it to the output merger state
+	result = m_device->CreateDepthStencilState(&depthStencilDesc, &m_depthStencilState);
+	if (FAILED(result)) { return false; }
+	m_deviceContext->OMSetDepthStencilState(m_depthStencilState, 1);
+
+	// Fill out the depth stencil view description
+	ZeroMemory(&depthStencilViewDesc, sizeof(depthStencilViewDesc));
+	depthStencilViewDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	depthStencilViewDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	depthStencilViewDesc.Texture2D.MipSlice = 0;
+
+	// Now create the depth stencil view
+	result = m_device->CreateDepthStencilView(m_depthStencilBuffer, &depthStencilViewDesc, &m_depthStencilView);
 	if (FAILED(result)) { return false; }
 
 	// Set the render target
 	m_deviceContext->OMSetRenderTargets(1, &m_renderTargetView, m_depthStencilView);
+
+	// Fill out the rasterizer description
+	rasterDesc.AntialiasedLineEnable = false;
+	rasterDesc.CullMode = D3D11_CULL_BACK;
+	rasterDesc.DepthBias = 0;
+	rasterDesc.DepthBiasClamp = 0.0f;
+	rasterDesc.DepthClipEnable = true;
+	rasterDesc.FillMode = D3D11_FILL_SOLID;
+	rasterDesc.FrontCounterClockwise = false;
+	rasterDesc.MultisampleEnable = false;
+	rasterDesc.ScissorEnable = false;
+	rasterDesc.SlopeScaledDepthBias = 0.0f;
+
+	// Create the rasterizer state
+	result = m_device->CreateRasterizerState(&rasterDesc, &m_rasterizerState);
+	if (FAILED(result)) { return false; }
+
+	// Set the rasterizer state
+	m_deviceContext->RSSetState(m_rasterizerState);
 
 	// Create the viewport (relative to the client area)
 	viewport.TopLeftX = 0.0f;
@@ -147,7 +199,10 @@ bool Direct3D::Initialize(int width, int height, HWND hwnd, bool vsync, bool ful
 	m_deviceContext->RSSetViewports(1, &viewport);
 
 	// Setup the world matrix
-	XMStoreFloat4x4(&m_world, XMMatrixIdentity());
+	m_world = XMMatrixIdentity();
+
+	// Setup the projection matrix
+	m_projection = XMMatrixPerspectiveFovLH(XM_PI / 4.0f, (float)width / (float)height, 1.0f, 1000.0f);
 
 	return true;
 }
@@ -193,15 +248,17 @@ void Direct3D::Shutdown() {
 	return;
 }
 
-void Direct3D::Present() {
-	float color[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+void Direct3D::StartScene() {
+	float color[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 	// Clear the render target view to black
 	m_deviceContext->ClearRenderTargetView(m_renderTargetView, color);
 
 	// Clear the depth stencil view
 	m_deviceContext->ClearDepthStencilView(m_depthStencilView, D3D11_CLEAR_DEPTH, 1.0f, 0);
+}
 
+void Direct3D::Present() {
 	m_swapChain->Present(m_vsync_enabled ? 1 : 0, 0);
 
 	return;
@@ -215,6 +272,10 @@ ID3D11DeviceContext* Direct3D::GetDeviceContext() {
 	return m_deviceContext;
 }
 
-XMFLOAT4X4 Direct3D::GetWorldMatrix() {
+XMMATRIX Direct3D::GetWorldMatrix() {
 	return m_world;
+}
+
+XMMATRIX Direct3D::GetProjectionMatrix() {
+	return m_projection;
 }

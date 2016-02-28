@@ -19,6 +19,7 @@
 
 // Includes
 #include "model.h"
+#include "shading.h"
 #include <d3d11.h>
 #include <DirectXMath.h>
 using namespace DirectX;
@@ -33,15 +34,16 @@ public:
 	// Initialize and shut down
 	bool Initialize(ID3D11Device*);
 	void Shutdown();
-	void Update(ID3D11DeviceContext*, float, XMFLOAT4X4, XMFLOAT4X4, XMFLOAT4X4);
+	void Update(ID3D11DeviceContext*, float, XMMATRIX, XMMATRIX, XMMATRIX);
 
 private:
 	Model* m_models;
+	ColorShader* m_colorShader;
 	int m_scenarioIndex;
 
-	XMFLOAT4X4 m_worldMatrix;
-	XMFLOAT4X4 m_viewMatrix;
-	XMFLOAT4X4 m_projectMatrix;
+	XMMATRIX m_worldMatrix;
+	XMMATRIX m_viewMatrix;
+	XMMATRIX m_projectMatrix;
 };
 
 #endif

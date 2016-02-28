@@ -20,10 +20,6 @@ Model::Model() {
 	m_indexBuffer = 0;
 	m_vertexCount = 0;
 	m_indexCount = 0;
-
-	m_effect = 0;
-	m_effectTechnique = 0;
-	m_worldViewProj = 0;
 }
 
 Model::Model(const Model& other) {
@@ -38,7 +34,6 @@ bool Model::InitializeBuffers(ID3D11Device* device) {
 	D3D11_BUFFER_DESC vertexBufferDesc, indexBufferDesc;
 	D3D11_SUBRESOURCE_DATA vertexData, indexData;
 	HRESULT hresult;
-	bool result;
 
 	vertices = 0;
 	indices = 0;
@@ -117,19 +112,10 @@ bool Model::InitializeBuffers(ID3D11Device* device) {
 	delete[] indices;
 	indices = 0;
 
-	// Finally initialize the shader
-	result = InitializeShader(device);
-	if (!result) {
-		return false;
-	}
-
 	return true;
 }
 
-void Model::ShutdownBuffers() {
-	// Shutdown effect variables
-	ShutdownShader();
-	
+void Model::ShutdownBuffers() {	
 	// Release the vertex buffer
 	if (m_vertexBuffer) {
 		m_vertexBuffer->Release();
@@ -143,10 +129,9 @@ void Model::ShutdownBuffers() {
 	}
 }
 
-void Model::RenderBuffers(ID3D11DeviceContext* deviceContext, XMFLOAT4X4 worldMatrix, XMFLOAT4X4 viewMatrix, XMFLOAT4X4 projectionMatrix) {
+void Model::RenderBuffers(ID3D11DeviceContext* deviceContext) {
 	unsigned int stride;
 	unsigned int offset;
-	XMFLOAT4X4 worldViewProj;
 
 	// Set the stride and offset and set the vertex buffer
 	stride = sizeof(Vertex);
@@ -159,107 +144,9 @@ void Model::RenderBuffers(ID3D11DeviceContext* deviceContext, XMFLOAT4X4 worldMa
 	// Set the primitive topology to triangles
 	deviceContext->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	// Set the transformation matrices
-	XMMATRIX world = XMLoadFloat4x4(&worldMatrix);
-	XMMATRIX view = XMLoadFloat4x4(&viewMatrix);
-	XMMATRIX proj = XMLoadFloat4x4(&projectionMatrix);
-	XMStoreFloat4x4(&worldViewProj, world * view * proj);
-
-	// Render the shader output
-	RenderShader(deviceContext, worldViewProj);
-
 	return;
 }
 
 int Model::GetIndexCount() {
 	return m_indexCount;
-}
-
-bool Model::LoadModelFromFile(char* filename, Vertex* vertices, unsigned int* indices) {
-
-	return true;
-}
-
-bool Model::InitializeShader(ID3D11Device* device) {
-	int size;
-	D3DX11_PASS_DESC passDesc;
-	HRESULT result;
-
-	// Load compiled shader from file
-	std::ifstream fin("FX/shader.fxo", std::ios::binary);
-	if (fin.fail()) return false;
-	fin.seekg(0, std::ios_base::end);
-	size = (int)fin.tellg();
-	fin.seekg(0, std::ios_base::beg);
-	std::vector<char> compiledShader(size);
-	fin.read(&compiledShader[0], size);
-	fin.close();
-
-	// Create the effect for the effect file
-	result = D3DX11CreateEffectFromMemory(&compiledShader[0], size, 0, device, &m_effect);
-	if (FAILED(result)) {
-		return false;
-	}
-
-	m_effectTechnique = m_effect->GetTechniqueByName("ColorTech");
-	m_worldViewProj = m_effect->GetVariableByName("g_worldViewProj")->AsMatrix();
-
-	D3D11_INPUT_ELEMENT_DESC vertexDesc[] = {
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-	};
-
-	m_effectTechnique->GetPassByIndex(0)->GetDesc(&passDesc);
-	result = device->CreateInputLayout(vertexDesc, 2, passDesc.pIAInputSignature, passDesc.IAInputSignatureSize, &m_inputLayout);
-	if (FAILED(result)) {
-		return false;
-	}
-
-
-
-	return true;
-}
-
-void Model::ShutdownShader() {
-	// Release all pointers
-	if (m_inputLayout) {
-		m_inputLayout->Release();
-		m_inputLayout = 0;
-	}
-	
-	if (m_effectTechnique) {
-		m_effectTechnique = 0;
-	}
-
-	if (m_worldViewProj) {
-		m_worldViewProj = 0;
-	}
-
-	if (m_effect) {
-		m_effect->Release();
-		m_effect = 0;
-	}
-}
-
-void Model::RenderShader(ID3D11DeviceContext* deviceContext, XMFLOAT4X4 worldViewProjF) {
-	unsigned int p;
-	XMMATRIX worldViewProj;
-	D3DX11_TECHNIQUE_DESC techDesc;
-
-	// Load the world view projection matrix
-	worldViewProj = XMLoadFloat4x4(&worldViewProjF);
-
-	// Set the shader variable
-	m_worldViewProj->SetMatrix(reinterpret_cast<float*>(&worldViewProj));
-
-	// Set the input layout to the one we created
-	deviceContext->IASetInputLayout(m_inputLayout);
-
-	// Get the technique description and draw the objects per pass
-	m_effectTechnique->GetDesc(&techDesc);
-	for (p = 0; p < techDesc.Passes; ++p) {
-		m_effectTechnique->GetPassByIndex(0)->Apply(0, deviceContext);
-
-		deviceContext->DrawIndexed(m_indexCount, 0, 0);
-	}
 }

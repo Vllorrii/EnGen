@@ -42,6 +42,7 @@ public:
 	void Shutdown();
 
 	// Presents the back buffer to the screen
+	void StartScene();
 	void Present();
 
 	// Getter methods for the device and device context
@@ -49,7 +50,8 @@ public:
 	ID3D11DeviceContext* GetDeviceContext();
 
 	// Getter methods for the world and projection matrices
-	XMFLOAT4X4 GetWorldMatrix();
+	XMMATRIX GetWorldMatrix();
+	XMMATRIX GetProjectionMatrix();
 
 private:
 	// Necessary Direct3D components
@@ -63,7 +65,8 @@ private:
 	ID3D11RasterizerState* m_rasterizerState;
 
 	// Transformation matrices
-	XMFLOAT4X4 m_world;
+	XMMATRIX m_world;
+	XMMATRIX m_projection;
 
 	// Private variables
 	bool m_vsync_enabled;

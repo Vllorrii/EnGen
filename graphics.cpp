@@ -57,8 +57,7 @@ bool Graphics::Initialize(int width, int height, HWND hwnd) {
 	if (!m_Camera) {
 		return false;
 	}
-	m_Camera->LookAt(XMFLOAT3(0.0f, 0.0f, -10.0f), XMFLOAT3(0.0f, 0.0f, 1.0f), XMFLOAT3(0.0f, 1.0f, 0.0f));
-	m_Camera->SetLens(0.25f * XM_PI, (float)width / (float)height, 1.0f, 1000.0f);
+	m_Camera->SetPosition(0.0f, 0.0f, -5.0f);
 
 	return true;
 }
@@ -92,17 +91,11 @@ bool Graphics::Render(GAMESTATE state, float dt) {
 
 	// Render graphics according to game state
 	if (m_currentState == GS_INGAME) {
-		XMFLOAT4X4 view; XMStoreFloat4x4(&view, m_Camera->GetViewMatrix());
-		XMFLOAT4X4 proj; XMStoreFloat4x4(&proj, m_Camera->GetProjectionMatrix());
-		m_Scenario->Update(m_Direct3D->GetDeviceContext(), dt, m_Direct3D->GetWorldMatrix(), view, proj);
+		m_Direct3D->StartScene();
+		
+		m_Camera->Render();
 
-		// Temporary Windows input detection
-		if (GetAsyncKeyState('W') & 0x8000) m_Camera->Walk(10.0f * dt);
-		if (GetAsyncKeyState('S') & 0x8000) m_Camera->Walk(-10.0f * dt);
-		if (GetAsyncKeyState('A') & 0x8000) m_Camera->Strafe(-10.0f * dt);
-		if (GetAsyncKeyState('D') & 0x8000) m_Camera->Strafe(10.0f * dt);
-
-		m_Camera->UpdateViewMatrix();
+		m_Scenario->Update(m_Direct3D->GetDeviceContext(), dt, m_Direct3D->GetWorldMatrix(), m_Camera->GetViewMatrix(), m_Direct3D->GetProjectionMatrix());
 		
 		m_Direct3D->Present();
 	}

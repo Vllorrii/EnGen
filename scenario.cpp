@@ -18,12 +18,13 @@
 
 Scenario::Scenario() {
 	m_models = 0;
+	m_colorShader = 0;
 	m_scenarioIndex = 0;
 
 	XMMATRIX I = XMMatrixIdentity();
-	XMStoreFloat4x4(&m_worldMatrix, I);
-	XMStoreFloat4x4(&m_viewMatrix, I);
-	XMStoreFloat4x4(&m_projectMatrix, I);
+	m_worldMatrix = I;
+	m_viewMatrix = I;
+	m_projectMatrix = I;
 }
 
 Scenario::Scenario(const Scenario& other) {
@@ -47,6 +48,18 @@ bool Scenario::Initialize(ID3D11Device* device) {
 		return false;
 	}
 
+	// Create an instance of the color shader class
+	m_colorShader = new ColorShader;
+	if (!m_colorShader) {
+		return false;
+	}
+
+	// Initialize the color shader for drawing
+	result = m_colorShader->Initialize(device);
+	if (!result) {
+		return false;
+	}
+
 	return true;
 }
 
@@ -57,13 +70,20 @@ void Scenario::Shutdown() {
 		m_models = 0;
 	}
 
+	// Release the color shader class
+	if (m_colorShader) {
+		m_colorShader->Shutdown();
+		m_colorShader = 0;
+	}
 	return;
 }
 
-void Scenario::Update(ID3D11DeviceContext* deviceContext, float dt, XMFLOAT4X4 worldMatrix, XMFLOAT4X4 viewMatrix, XMFLOAT4X4 projectionMatrix) {
+void Scenario::Update(ID3D11DeviceContext* deviceContext, float dt, XMMATRIX worldMatrix, XMMATRIX viewMatrix, XMMATRIX projectionMatrix) {
 	// Update animation stuff
 	
-	m_models->RenderBuffers(deviceContext, worldMatrix, viewMatrix, projectionMatrix);
+	m_models->RenderBuffers(deviceContext);
+
+	m_colorShader->Render(deviceContext, m_models->GetIndexCount(), worldMatrix, viewMatrix, projectionMatrix);
 
 	return;
 }
